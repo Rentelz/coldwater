@@ -1,8 +1,11 @@
 import { configureStore } from "@reduxjs/toolkit";
-
+import dataReducer from './slices/sessionSlice'
 export const store  = configureStore({
  
-    reducer : {}
+    reducer : {
+
+        data : dataReducer
+    }
 
 
 

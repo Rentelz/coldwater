@@ -4,13 +4,22 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation"; // ✅ Correct for App Router
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Heart, ChevronDown, Search, User } from "lucide-react";
 
 export default function Navbar() {
+  const router = useRouter();
+
   const [city, setCity] = useState("Select City");
   const cities = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai"];
-
   return (
     <nav className="flex items-center justify-between bg-white shadow-md px-4 py-2">
       {/* Left: Logo */}
@@ -19,7 +28,10 @@ export default function Navbar() {
       {/* City Selector */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="flex items-center text-sm px-3 py-1">
+          <Button
+            variant="outline"
+            className="flex items-center text-sm px-3 py-1"
+          >
             {city} <ChevronDown className="w-4 h-4 ml-1" />
           </Button>
         </DropdownMenuTrigger>
@@ -57,9 +69,25 @@ export default function Navbar() {
           </Avatar>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem>Profile</DropdownMenuItem>
+          <DropdownMenuItem 
+          
+        onClick={() => router.push("/profile")}
+          
+          >Profile</DropdownMenuItem>
           <DropdownMenuItem>Settings</DropdownMenuItem>
-          <DropdownMenuItem>Logout</DropdownMenuItem>
+          <DropdownMenuItem
+           onClick={async () => {
+            // Force clean session on client side first
+            await signOut({ 
+              redirect: false 
+            });
+            
+            // Then force a full page navigation (not just client routing)
+            window.location.href = '/';
+          }}
+          >
+            Logout
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </nav>

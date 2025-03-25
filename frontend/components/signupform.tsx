@@ -11,6 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Loader } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { RootState , AppDispatch } from "@/store/store";
+import { useDispatch, useSelector } from "react-redux";
+import { sendData } from "@/store/slices/sessionSlice";
 // Validation schema
 const signupSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters"),
@@ -19,12 +22,16 @@ const signupSchema = z.object({
 });
 
 export default function SignupForm() {
+  const dispatch = useDispatch<AppDispatch>();
   const { data: session, status } = useSession();
   const router = useRouter();
 
   useEffect(() => {
     if (session) {
       router.push("/home");
+      if (session.user?.name && session.user?.email) {
+        dispatch(sendData({ name: session.user.name, email: session.user.email, message: "" }));
+      }
     }
   }, [session, router]);
 
@@ -55,14 +62,21 @@ export default function SignupForm() {
     <div className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <Card className="w-full max-w-sm shadow-md">
         <CardHeader>
-          <CardTitle className="text-center text-2xl font-bold">Sign Up</CardTitle>
+          <CardTitle className="text-center text-2xl font-bold">
+            Sign Up
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {session ? (
             <div className="text-center">
-              <p className="text-lg font-semibold">Welcome, {session.user?.name}!</p>
+              <p className="text-lg font-semibold">
+                Welcome, {session.user?.name}!
+              </p>
               <p className="text-gray-600">{session.user?.email}</p>
-              <Button onClick={() => signOut()} className="w-full mt-4 bg-red-500 hover:bg-red-600">
+              <Button
+                onClick={() => signOut()}
+                className="w-full mt-4 bg-red-500 hover:bg-red-600"
+              >
                 Sign Out
               </Button>
             </div>
@@ -71,28 +85,59 @@ export default function SignupForm() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name</Label>
-                  <Input id="name" {...register("name")} placeholder="John Doe" />
-                  {errors.name && <p className="text-red-500 text-sm">{errors.name.message}</p>}
+                  <Input
+                    id="name"
+                    {...register("name")}
+                    placeholder="John Doe"
+                  />
+                  {errors.name && (
+                    <p className="text-red-500 text-sm">
+                      {errors.name.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" {...register("email")} type="email" placeholder="you@example.com" />
-                  {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
+                  <Input
+                    id="email"
+                    {...register("email")}
+                    type="email"
+                    placeholder="you@example.com"
+                  />
+                  {errors.email && (
+                    <p className="text-red-500 text-sm">
+                      {errors.email.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" {...register("password")} type="password" placeholder="••••••••" />
-                  {errors.password && <p className="text-red-500 text-sm">{errors.password.message}</p>}
+                  <Input
+                    id="password"
+                    {...register("password")}
+                    type="password"
+                    placeholder="••••••••"
+                  />
+                  {errors.password && (
+                    <p className="text-red-500 text-sm">
+                      {errors.password.message}
+                    </p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full">Sign Up</Button>
+                <Button type="submit" className="w-full">
+                  Sign Up
+                </Button>
               </form>
 
               <div className="mt-4 text-center">
                 <p className="text-gray-600">Or continue with</p>
-                <Button onClick={() => signIn("google")} className="w-full mt-2 bg-blue-500 hover:bg-blue-600">
+                <Button
+                  onClick={() => signIn("google")}
+                  className="w-full mt-2 bg-blue-500 hover:bg-blue-600"
+                >
                   Sign In with Google
                 </Button>
               </div>

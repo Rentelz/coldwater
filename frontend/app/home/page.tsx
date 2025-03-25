@@ -12,3 +12,40 @@ const HomePage = () => {
 };
 
 export default HomePage;
+
+
+// app/home/page.tsx
+// "use client";
+
+// import { useSession } from "next-auth/react";
+// import { useEffect } from "react";
+// import { useRouter } from "next/navigation";
+// import Navbar from "@/components/Navbar";
+
+// export default function HomePage() {
+//   const { data: session, status } = useSession();
+//   const router = useRouter();
+  
+//   useEffect(() => {
+//     if (status === "unauthenticated") {
+//       router.replace("/");
+//     }
+//   }, [status, router]);
+  
+//   if (status === "loading") {
+//     return <div>Loading...</div>;
+//   }
+  
+//   if (!session) {
+//     return <div>Not authenticated. Redirecting...</div>;
+//   }
+  
+//   return (
+//     <div>
+//       <Navbar/>
+//       <h1>Protected Home Page</h1>
+//       <p>Welcome {session.user?.name}</p>
+//       <p>You are authenticated!</p>
+//     </div>
+//   );
+// }
