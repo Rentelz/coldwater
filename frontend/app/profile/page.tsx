@@ -1,5 +1,10 @@
 'use client'
+
 import React, { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { RootState, AppDispatch } from '@/store/store'
+import { sendUpDatedProfileDetails } from '@/store/slices/profile/updateProfileDetails'
+
 import { useSession } from 'next-auth/react'
 import {
   Card,
@@ -27,9 +32,29 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, Controller } from 'react-hook-form'
 import * as z from 'zod'
-import { formSchema } from '@/schema/profileSchema'
 import { getCities, getStates } from '@/services/locationService'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Progress } from '@/components/ui/progress' // Import Progress component
+
+const formSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().email().optional(),
+  number: z.string().min(10, 'Phone number must be 10 digits'),
+  state: z.object({
+    id: z.union([z.string(), z.number()]),
+    name: z.string(),
+    iso2: z.string().optional(),
+  }),
+  city: z.object({
+    id: z.union([z.string(), z.number()]),
+    name: z.string(),
+  }),
+  address: z.string().min(1, 'Address is required'),
+  pincode: z.string().min(1, 'Pincode is required'),
+  addressType: z.enum(['home', 'office', 'other']),
+})
+
+type FormValues = z.infer<typeof formSchema>
 
 interface State {
   id: string
@@ -42,70 +67,98 @@ interface City {
   name: string
 }
 
-type FormValues = z.infer<typeof formSchema> & {
-  addressType: string
-}
-
 const ProfilePage = () => {
-  const { data: session } = useSession()
-  const name = session?.user?.name
-  const email = session?.user?.email
-  const image = session?.user?.image
+  const dispatch = useDispatch<AppDispatch>()
+  const { data: session, status } = useSession()
+  const { loading, success, error, data } = useSelector(
+    (state: RootState) => state.updateProfile
+  )
 
   const [states, setStates] = useState<State[]>([])
   const [cities, setCities] = useState<City[]>([])
   const [stateOpen, setStateOpen] = useState(false)
   const [cityOpen, setCityOpen] = useState(false)
   const [selectedState, setSelectedState] = useState<State | null>(null)
+  const [formErrors, setFormErrors] = useState<string | null>(null)
 
   const {
     register,
     handleSubmit,
     control,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      addressType: 'home',
+    },
   })
 
+  // Set session data into the form after it loads
+  useEffect(() => {
+    if (session?.user) {
+      setValue('name', session.user.name || '')
+      setValue('email', session.user.email || '')
+    }
+  }, [session, setValue])
+
   const onSubmit = (data: FormValues) => {
-    console.log('Form Data:', data)
+    try {
+      if (!data.state || !data.city || !data.addressType) {
+        setFormErrors('Please complete all required fields.')
+        return
+      }
+
+      const formData = {
+        number: data.number,
+        city: {
+          id: data.city.id,
+          name: data.city.name,
+        },
+        state: {
+          id: data.state.id,
+          name: data.state.name,
+        },
+        address: data.address,
+        pincode: data.pincode,
+        addressType: data.addressType,
+      }
+
+      const token = session?.idToken || session?.accessToken || ''
+      dispatch(sendUpDatedProfileDetails({ updateData: formData, token }))
+    } catch (error) {
+      console.error('Error in form submission:', error)
+      setFormErrors('An unexpected error occurred. Check console for details.')
+    }
   }
 
-  // Fetch states on page load
   useEffect(() => {
-    getStates().then((fetchedStates) => {
-      setStates(fetchedStates)
-      console.log('States:', fetchedStates)
-    })
+    getStates()
+      .then((fetchedStates) => setStates(fetchedStates))
+      .catch((error) => console.error('Error fetching states:', error))
   }, [])
 
   useEffect(() => {
-    if (selectedState && selectedState.iso2) {
-      // ✅ Use iso2, not id
-      console.log(
-        'Fetching cities for state:',
-        selectedState.iso2,
-        selectedState.name
-      )
+    if (selectedState?.iso2) {
       getCities('IN', selectedState.iso2)
         .then((fetchedCities) => {
-          console.log('Raw cities response:', fetchedCities)
           setCities(Array.isArray(fetchedCities) ? fetchedCities : [])
-          console.log('Cities after setting:', fetchedCities)
         })
-        .catch((error) => {
-          console.error('Error fetching cities:', error)
-        })
+        .catch((error) => console.error('Error fetching cities:', error))
     }
   }, [selectedState])
+
+  if (status === 'loading') {
+    return <div className="text-center py-10">Loading session...</div>
+  }
 
   return (
     <div className="container mx-auto py-10">
       <Card className="max-w-2xl mx-auto">
         <CardHeader className="flex items-center gap-4">
           <Avatar className="w-16 h-16">
-            <AvatarImage src={image ?? undefined} />
+            <AvatarImage src={session?.user?.image ?? undefined} />
             <AvatarFallback>JD</AvatarFallback>
           </Avatar>
 
@@ -116,30 +169,38 @@ const ProfilePage = () => {
         </CardHeader>
 
         <CardContent>
+          {loading && (
+            <div className="mb-4">
+              {/* Progress Bar to show loading */}
+              <Progress value={50} />{' '}
+              {/* Adjust value as per your loading stage */}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit(onSubmit)}>
-            <div>
-              <Label>Name</Label>
-              <Input
-                type="text"
-                defaultValue={name ?? ''}
-                {...register('name')}
-                readOnly
-              />
+            {formErrors && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-red-600">
+                {formErrors}
+              </div>
+            )}
+
+            {/* Name */}
+            <div className="mb-4">
+              <Label htmlFor="name">Name</Label>
+              <Input id="name" type="text" {...register('name')} readOnly />
             </div>
 
-            <div>
-              <Label>Email</Label>
-              <Input
-                type="email"
-                defaultValue={email ?? 'example@gmail.com'}
-                {...register('email')}
-                readOnly
-              />
+            {/* Email */}
+            <div className="mb-4">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" {...register('email')} readOnly />
             </div>
 
-            <div>
-              <Label>Phone Number</Label>
+            {/* Phone */}
+            <div className="mb-4">
+              <Label htmlFor="number">Phone Number</Label>
               <Input
+                id="number"
                 type="text"
                 {...register('number')}
                 maxLength={10}
@@ -151,32 +212,68 @@ const ProfilePage = () => {
                 }}
               />
               {errors.number && (
-                <p className="text-red-500">{errors.number.message}</p>
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.number.message}
+                </p>
               )}
             </div>
 
-            <div>
-              {/* State Selection with Popover */}
-              <div>
-                <h1 className="mt-4 font-semibold">Confirm Your Location</h1>
+            {/* State and City */}
+            <div className="mb-4">
+              <h1 className="mt-4 font-semibold">Confirm Your Location</h1>
+              <div className="flex gap-1 mt-1 w-full">
+                {/* State Select */}
+                <Popover open={stateOpen} onOpenChange={setStateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full max-w-[240px]">
+                      <Controller
+                        control={control}
+                        name="state"
+                        render={({ field }) => (
+                          <span>
+                            {field.value ? field.value.name : 'Select a State'}
+                          </span>
+                        )}
+                      />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-60 p-0">
+                    <Command>
+                      <CommandInput placeholder="Search state..." />
+                      <CommandList>
+                        <CommandGroup>
+                          {states.map((state) => (
+                            <CommandItem
+                              key={state.id}
+                              onSelect={() => {
+                                setValue('state', state)
+                                setSelectedState(state)
+                                setStateOpen(false)
+                              }}
+                            >
+                              {state.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
 
-                {/* State & City Selection with Popover */}
-                <div className="flex gap-1 mt-1 w-full">
-                  {/* State Selection */}
-                  <Popover open={stateOpen} onOpenChange={setStateOpen}>
+                {/* City Select */}
+                {selectedState && (
+                  <Popover open={cityOpen} onOpenChange={setCityOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full max-w-[240px] flex-shrink-0"
+                        className="w-full max-w-[240px]"
                       >
                         <Controller
                           control={control}
-                          name="state"
+                          name="city"
                           render={({ field }) => (
                             <span>
-                              {field.value
-                                ? field.value.name
-                                : 'Select a State'}
+                              {field.value ? field.value.name : 'Select a City'}
                             </span>
                           )}
                         />
@@ -184,128 +281,76 @@ const ProfilePage = () => {
                     </PopoverTrigger>
                     <PopoverContent className="w-60 p-0">
                       <Command>
-                        <CommandInput placeholder="Search state..." />
+                        <CommandInput placeholder="Search city..." />
                         <CommandList>
                           <CommandGroup>
-                            {states.length > 0 ? (
-                              states.map((state) => (
-                                <CommandItem
-                                  key={state.id}
-                                  onSelect={() => {
-                                    setValue('state', state)
-                                    setSelectedState(state)
-                                    setStateOpen(false)
-                                  }}
-                                >
-                                  {state.name}
-                                </CommandItem>
-                              ))
-                            ) : (
-                              <p className="text-center py-2 text-gray-500">
-                                No states found
-                              </p>
-                            )}
+                            {cities.map((city) => (
+                              <CommandItem
+                                key={city.id}
+                                onSelect={() => {
+                                  setValue('city', city)
+                                  setCityOpen(false)
+                                }}
+                              >
+                                {city.name}
+                              </CommandItem>
+                            ))}
                           </CommandGroup>
                         </CommandList>
                       </Command>
                     </PopoverContent>
                   </Popover>
-
-                  {/* City Selection */}
-                  {selectedState && (
-                    <Popover open={cityOpen} onOpenChange={setCityOpen}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full max-w-[240px] flex-shrink-0"
-                        >
-                          <Controller
-                            control={control}
-                            name="city"
-                            render={({ field }) => (
-                              <span>
-                                {field.value
-                                  ? field.value.name
-                                  : 'Select a City'}
-                              </span>
-                            )}
-                          />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-60 p-0">
-                        <Command>
-                          <CommandInput placeholder="Search city..." />
-                          <CommandList>
-                            <CommandGroup>
-                              {cities.length > 0 ? (
-                                cities.map((city) => (
-                                  <CommandItem
-                                    key={city.id}
-                                    onSelect={() => {
-                                      setValue('city', city)
-                                      setCityOpen(false)
-                                    }}
-                                  >
-                                    {city.name}
-                                  </CommandItem>
-                                ))
-                              ) : (
-                                <p className="text-center py-2 text-gray-500">
-                                  No cities found
-                                </p>
-                              )}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
+                )}
               </div>
             </div>
 
-            <div>
-              <Label>Address</Label>
-              <Input
-                type="text"
-                {...register('address')}
-                placeholder="Enter your address"
+            {/* Address */}
+            <div className="mb-4">
+              <Label htmlFor="address">Address</Label>
+              <Input id="address" type="text" {...register('address')} />
+              {errors.address && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.address.message}
+                </p>
+              )}
+            </div>
+
+            {/* Pincode */}
+            <div className="mb-4">
+              <Label htmlFor="pincode">Pincode</Label>
+              <Input id="pincode" type="text" {...register('pincode')} />
+              {errors.pincode && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.pincode.message}
+                </p>
+              )}
+            </div>
+
+            {/* Address Type */}
+            <div className="mb-4">
+              <Label>Address Type</Label>
+              <Controller
+                control={control}
+                name="addressType"
+                render={({ field }) => (
+                  <RadioGroup {...field}>
+                    <div className="flex gap-2">
+                      <RadioGroupItem value="home" id="home" label="Home" />
+                      <RadioGroupItem
+                        value="office"
+                        id="office"
+                        label="Office"
+                      />
+                      <RadioGroupItem value="other" id="other" label="Other" />
+                    </div>
+                  </RadioGroup>
+                )}
               />
             </div>
 
-            <div>
-              <Label>Pincode</Label>
-              <Input
-                type="text"
-                {...register('pincode')}
-                placeholder="Enter your pincode"
-              />
-            </div>
-
-            <div className="mt-4">
-              <h2 className="font-semibold">Select Address Type</h2>
-              <RadioGroup
-                onValueChange={(value) => setValue('addressType', value)}
-                defaultValue="home"
-                className="flex flex-col space-y-2 mt-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="home" id="home" />
-                  <Label htmlFor="home">Home</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="office" id="office" />
-                  <Label htmlFor="office">Office</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="other" id="other" />
-                  <Label htmlFor="other">Other</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <Button type="submit" className="mt-4 w-full">
-              Save Changes
+            {/* Submit Button */}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Updating...' : 'Update Profile'}
             </Button>
           </form>
         </CardContent>

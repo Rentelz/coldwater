@@ -1,19 +1,14 @@
-import { configureStore } from "@reduxjs/toolkit";
+import { configureStore } from '@reduxjs/toolkit'
 import dataReducer from './slices/sessionSlice'
-export const store  = configureStore({
- 
-    reducer : {
-
-        data : dataReducer
-    }
-
-
-
+import { updateProfileReducer } from './slices/profile/updateProfileDetails'
+export const store = configureStore({
+  reducer: {
+    data: dataReducer,
+    updateProfile: updateProfileReducer,
+  },
 })
 
+// rooteState
 
-// rooteState 
-
-export type RootState  = ReturnType<typeof store.getState>
+export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
-

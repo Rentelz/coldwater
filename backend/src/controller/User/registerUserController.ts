@@ -1,7 +1,10 @@
 import { Request, Response } from "express";
-import User from "../../model/registerUser";
+import User from "../../model/profile/registerUser";
 
-export const registerUser = async (req: Request, res: Response): Promise<void> => {
+export const registerUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const { email, name } = req.body;
 
